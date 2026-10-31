@@ -61,3 +61,31 @@ Tests use temporary databases and Streamlit's AppTest to check creation, editing
 - `tests/`: database and UI flow tests.
 
 There is no compilation or build step. Streamlit dependencies are installed by pip.
+
+## Scouting Profiles
+
+Open the **Scouting Profiles** tab to create, name, edit, or delete research profiles. Choose an **Active Scouting Profile** in the sidebar; the choice is stored in SQLite and restored in new sessions.
+
+Each profile can specify target sectors, headquarters countries/regions, investment stages, business model (B2B, B2C, B2B2C, or Any), excluded companies, excluded investors, and custom criteria. Headquarters means the company's location, **not founder origin or nationality**. For custom criteria, add rows with a name and a rule. Each criterion is Required or Preferred. Blank values and the Any business model impose no restrictions. No geography, sector, founder background, or investment strategy is preselected.
+
+In **Browse & edit**, select a startup and use **Profile assessment** below its company information. For every configured criterion, choose **Meets**, **Does not meet**, or **Unknown**, and record a rationale, optional source URL, and assessment date. For an exclusion rule, Meets means that the company passes the exclusion rule. These are manual judgments; no web requests or automatic matching are performed. All criteria are saved together for that profile and startup.
+
+The sidebar's **Filter by profile assessment** filters the list using the active profile:
+
+- **Not evaluated**: no assessment for this profile and company.
+- **Review needed**: criteria changed after the saved assessment. Historical results are retained and displayed separately; current criteria start at Unknown until reviewed.
+- **Does not meet required criteria**: at least one Required criterion is explicitly not met.
+- **Needs research**: no Required criterion fails, but at least one is Unknown. Unknown is never counted as failure.
+- **Meets required criteria**: all Required criteria are explicitly met. Preferred misses or unknowns do not disqualify the company; check individual results for details.
+- **Reviewed (no required criteria)**: a preferred-only profile was assessed; this label does not assert eligibility.
+- **No criteria configured**: the profile imposes no restrictions and has nothing to assess.
+
+The list status is specific to the active profile. The original company status (New, Researching, Shortlisted, Passed) remains separate. Company information, including existing personal notes, is shared across profiles; assessment rationales and results are profile-specific. CSV export continues to export company records; assessment history remains in the SQLite database.
+
+### Persistence and upgrades
+
+The application adds `scouting_profiles`, `profile_versions`, `assessments`, and `workspace_settings` tables to the existing SQLite file on first use. It does not replace or rewrite startup rows. Initialization is repeatable. Back up your database before upgrading using the procedure above. Profile deletion removes only that profile and its assessments; startups and other profiles remain. Deleting a startup removes assessments attached to that startup.
+
+Changes to criterion targets, names, priorities, additions, or removals create a new criteria version. Changing only the profile name does not invalidate assessments. Previous versions and their assessments remain available under **Saved assessment history**. Editing an assessment within the same criteria version replaces that version's response; this is not a full audit log of every edit. Company data changes are not automatically assessed against profiles: revisit judgments when new evidence arrives.
+
+Tests cover additive migration with existing records, repeated initialization, profile separation, persistent active selection, deletion boundaries, Required/Preferred/Unknown logic, stale revision rejection, historical criteria snapshots, and Streamlit profile/assessment flows. Existing company CRUD and CSV tests remain in place. No AI, accounts, online research, or public deployment is introduced.

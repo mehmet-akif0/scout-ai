@@ -35,7 +35,7 @@ class AppFlowTest(unittest.TestCase):
             self.assertFalse(reopened.exception)
             self.assertEqual(len(reopened.dataframe[0].value), 1)
             field('text_input', 'Search company name').set_value('missing').run()
-            self.assertEqual(len(app.dataframe), 0)
+            self.assertFalse(any('Company' in w.value.columns for w in app.dataframe))
             field('text_input', 'Search company name').set_value('test').run()
             field('selectbox', 'Filter by sector').select('Climate').run()
             field('selectbox', 'Filter by stage').select('Unknown').run()

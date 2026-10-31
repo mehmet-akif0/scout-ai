@@ -1,4 +1,20 @@
-node_modules/
+# Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+# Local databases and exports
 data/
-*.log
+*.db
+*.db-*
+*.sqlite*
+# Secrets and machine-specific configuration
 .env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.log
+.DS_Store
+# Previous application artifacts
+node_modules/

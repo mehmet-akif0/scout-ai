@@ -1,51 +1,63 @@
-# Scout AI
+# ScoutAI
 
-Girişimleri keşif listesinde toplamak ve yatırım fırsatlarını değerlendirmek için Türkçe startup scouting uygulaması.
+A personal startup scouting application built with Python, Streamlit, and SQLite. The interface and repository documentation are in English.
 
-## Gereksinimler ve kurulum
+## Requirements
 
-Node.js 24 veya üzeri ve npm gerekir. Uygulama Node'un yerleşik HTTP ve SQLite modüllerini kullanır; üçüncü taraf çalışma zamanı bağımlılığı veya API anahtarı gerekmez. Node bazı sürümlerde SQLite için deneysel özellik uyarısı verebilir.
+- Python 3.12 (tested); Python 3.10+ supported by Streamlit.
+- Streamlit **1.50.0**, pinned in `requirements.txt`.
+- SQLite is included with Python; no separate database server is required.
+- No external API, AI connection, credentials, or Node.js installation required.
 
-```sh
-npm ci
-npm start
+## Install and run
+
+From the repository directory:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501 --browser.gatherUsageStats false
 ```
 
-Tarayıcıda `http://127.0.0.1:3000` adresini açın. Geliştirme sırasında otomatik yeniden başlatma için `npm run dev` kullanın.
+On Windows, activate using `.venv\Scripts\activate` instead.
 
-## İlk kullanım
+Open **http://127.0.0.1:8501** in your browser. Stop the server with Ctrl+C. Run the same Streamlit command to open it again; existing records remain saved.
 
-1. **Girişim ekle** ile ad, sektör, aşama, konum, site, açıklama, 0–100 puan ve notları girin.
-2. Girişimleri metin, sektör ve takip durumuna göre filtreleyin. Liste yüksek puandan düşüğe sıralanır.
-3. **İncele** ile bilgileri, puanı ve takip durumunu güncelleyin veya kaydı silin.
-4. **JSON dışa aktar** tüm kayıtların taşınabilir bir kopyasını indirir. Bu sürümde JSON içe aktarma bulunmaz.
+## How to use
 
-İlk açılışta liste boştur; gerçek girişimler veya yapay veriler otomatik eklenmez. Puanlar kullanıcı tarafından girilir. AI analizi, otomatik internet taraması ve harici veri sağlayıcıları bu ilk sürüme dahil değildir.
+1. Open **Add startup**, enter the company name, and fill in any research details. Click **Add startup**.
+2. In **Browse & edit**, search by company name or filter by sector, investment stage, and status in the sidebar.
+3. Select a startup, edit its details, and click **Save changes**.
+4. To remove it, expand **Delete startup**, check the confirmation box, then click **Delete startup**.
+5. Click **Export filtered list as CSV** to download the current results. Clear filters to export all records.
 
-## Veri ve ayarlar
+Fields: company name, website, founders, sector, country, investment stage, short description, source links (one URL per line), personal notes, and status. Statuses are **New**, **Researching**, **Shortlisted**, and **Passed**. Only company name is required; stage defaults to Unknown, status to New.
 
-Veriler `data/scout.db` içinde SQLite ile kalıcı saklanır. `data/` Git dışında tutulur. Yedek almak için uygulamayı durdurup tüm `data/` klasörünü kopyalayın; geri yüklerken de uygulamayı durdurun.
+The workspace starts empty. No demo records or fabricated startup data are inserted. AI analysis and automatic web discovery are outside this first version.
 
-- `PORT`: Varsayılan `3000`.
-- `HOST`: Varsayılan `127.0.0.1`. Container erişimi gerekiyorsa `0.0.0.0` kullanın.
-- `DB_PATH`: Varsayılan depo kökündeki `data/scout.db`; alternatif veritabanı yolu.
+## Local data and privacy
 
-Bu sürüm tek ekip için yerel bir prototiptir; kullanıcı girişi ve erişim kontrolü içermez. Her erişen aynı kayıtları okuyabilir ve değiştirebilir. İnternete açmadan önce kimlik doğrulama, HTTPS ve erişim kontrolü ekleyin.
+The default database is `data/scoutai.db`, separate from the previous Node.js prototype's database. The earlier database is left untouched; automatic migration is not included. To use another path, set `SCOUTAI_DB_PATH` before starting the app.
 
-## Doğrulama
+Data persists across browser refreshes and server restarts. To back up, stop the app and copy the `data/` directory. To restore, stop the app and replace it with the backup. CSV export is available for portability; CSV import is not included. Formula-like CSV cells are prefixed with an apostrophe to prevent spreadsheet execution.
 
-```sh
-npm test
+`.gitignore` excludes databases, virtual environments, `.env` files and Streamlit secrets. Never commit real credentials or personal research data. This is a single-user local application without login or access control. Keep it bound to localhost; add authentication and HTTPS before exposing it to other users.
+
+## Tests
+
+```bash
+source .venv/bin/activate
+python -m unittest discover -s tests -v
 ```
 
-Entegrasyon testi geçici SQLite veritabanı ve gerçek HTTP sunucusu ile CRUD, giriş doğrulaması, statik dosyalar ve yeniden başlatma sonrası veri kalıcılığını kontrol eder. Test verileri gerçek veritabanına yazılmaz.
+Tests use temporary databases and Streamlit's AppTest to check creation, editing, deletion, validation, search and filters, CSV export, and persistence. No real workspace records are changed.
 
-Sağlık kontrolü: `GET /api/health` → `{"status":"ok"}`.
+## Project structure
 
-## Proje yapısı
+- `app.py`: English Streamlit interface.
+- `storage.py`: SQLite queries, validation, and CSV export.
+- `requirements.txt`: pinned application dependency.
+- `tests/`: database and UI flow tests.
 
-- `server.js`: HTTP sunucusu, API ve SQLite kalıcılığı.
-- `public/`: Duyarlı arayüz, arama/filtreleme ve düzenleme formu.
-- `test/app.test.js`: HTTP entegrasyon testi.
-
-Üretim derleme adımı gerekmez. JavaScript ve CSS doğrudan sunulur.
+There is no compilation or build step. Streamlit dependencies are installed by pip.

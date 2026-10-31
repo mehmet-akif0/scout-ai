@@ -220,3 +220,85 @@ Implementation references, consulted 2026-10-31:
 `python -m unittest discover -s tests -v` runs offline tests with temporary databases and explicitly mocked provider payloads. Coverage includes SSRF blocking, bounded retries, missing keys, incomplete outputs, source provenance/identity rejection, Unknown preservation, separate profile suggestions, queue locking/recovery/stopping, per-company failure isolation, caching and same-job draft idempotence, opt-in company updates, AI metadata persistence, and manual UI availability. These do **not** validate live API compatibility, real search quality, billing or your project's access. Those remain pending the single-company live test above.
 
 Research tables are additive; existing startup/profile/assessment/published rows are not migrated destructively. Full SQLite backups include research jobs, cache, proposals and metadata; CSV export remains the original company fields only. AI metadata follows a published analysis into a new manually edited draft. No public deployment, real accounts, new paid-data integrations, or automatic publishing is added.
+
+
+## Phase 5B: Metrics & Analytics (works without an API key)
+
+**Validation boundary:** manual entry, CSV mapping/validation, calculations and Streamlit chart rendering are tested with explicitly synthetic fixtures. No real company metric dataset or live AI extraction has been validated. The missing AI key does not disable any manual metrics feature. No demo observations, sector benchmarks or good/bad thresholds are inserted into the workspace.
+
+### Company workflow
+
+1. Open **Metrics & Analytics** and select an existing company.
+2. In **Relevance & definitions**, choose the metrics relevant to its business model and stage. Other metrics become N/A for that company. No SaaS/revenue template is forced on every business. Existing observations remain stored when relevance changes. The definition table lists stable CSV keys, names, units and meanings; custom definitions can be added with a new lowercase key.
+3. Use **Manual measurement** to save a sourced value, or explicitly select Unknown / N/A and leave the numeric field blank. A genuine zero is allowed as Known and remains different from missing data.
+4. Open **Dashboard** for dated KPI cards or time series. Company details (including Reader) also show approved Metrics & Analytics; pending AI suggestions never appear there.
+5. Use **Calculations** to choose an explicit recipe and its input observation IDs. Inspect the resulting formula, assumptions, source references and full input snapshots before saving. Insufficient or incompatible inputs show an explanation, not a made-up number.
+6. Correct a manual observation through **Correct an existing measurement**. This creates a new observation superseding the old one; historical values are never rewritten. For a calculated metric, correct its inputs and calculate again. Results referencing superseded inputs are marked stale and withheld from current charts; the stored historical calculation and analysis snapshots remain intact.
+
+### Observation model and evidence
+
+Every record snapshots its metric key/name/definition, decimal numeric value or null, unit, optional currency, period start/end, frequency, scope/population definition, named starting cohort (if relevant), explicit cohort age and age units, gross/net basis, Actual/Forecast/Target scenario, source URL or document reference, access date, optional publication date, evidence label, notes, and funding-round/valuation basis if relevant.
+
+Labels are **Company-reported**, **Independently corroborated**, **User-provided**, and **Calculated**. Independent corroboration requires a second reference and a written evidence basis. This is a structural requirement, not automatic proof of independence. Calculated is reserved for the calculation workflow and always stores its formula and full input observations. Document references can identify a worksheet, invoice export or other local evidence; no document upload/parser is implied. References are not fetched by manual entry.
+
+Known currency values require a three-letter currency code and absolute units, not a silently inferred millions/thousands scale. Unknown currency observations may leave currency blank. Percent inputs use 0–100 percentage units (NRR may exceed 100); they are not fractional decimals. Counts must be nonnegative integers. Periodic observations use complete calendar-month spans (one month, three months or twelve months); Custom supports explicitly delimited periods. Point measurements use the same start/end date. Funding rounds and disclosed valuations are dated Point observations.
+
+Supported definitions include revenue, MRR, reported ARR, Annualized MRR, paying customers, ARPA/ARPU, customer/revenue churn, retention, GRR/NRR, CAC/payback, gross margin, estimated LTV/CAC, cash/burn/runway, DAU/WAU/MAU, activation/conversion, GMV/take rate/transactions, funding rounds, and disclosed valuations. Cohort revenue movements and cash/acquisition/cost inputs have separate definitions. Custom metrics extend the registry without changing historical definitions.
+
+### Metric CSV Import
+
+Upload UTF-8 CSV and map columns to fields, or leave optional fields unmapped. Inspect Add/Skip/Error and conflict warnings before confirming **Import valid metric rows**. Import is add-only; alternative sourced values remain separate, never silently overwrite or average existing measurements. Repeating the same normalized observation (including its source and access date) skips it. Re-importing a historical superseded value does not restore it as current. Invalid rows are reported and skipped; totals show added, skipped and errors.
+
+Core columns:
+
+```text
+metric_key,value,currency,period_start,period_end,frequency,scope,source_ref,accessed_on,label,scenario,availability
+```
+
+Other mappable fields: name, definition, unit, cohort, cohort_age, cohort_age_unit, basis, published_on, corroboration_ref, corroboration_basis, notes and round_name. Defaults are Point, Actual, Known, User-provided and Not specified basis; key/name/definition/unit use the registered metric metadata when omitted. Unknown/N/A values must be blank. Source/access date, scope and measurement dates are mandatory. If cohort_age is supplied, explicitly specify days/weeks/months/years in cohort_age_unit. Formula/input lineage cannot be imported as if it were a verified calculation. Units must match the definition; use a new custom key for another unit.
+
+### Calculation contracts
+
+No currency conversion, period normalization, population inference, source averaging or benchmark thresholds are automatic. Inputs must belong to one company, use the same explicit scope/population, scenario, starting cohort/age and gross/net basis, and have compatible units and currencies. Most multi-input recipes also require exactly the same period and frequency. Different metrics naturally have different definitions; every input definition is retained for inspection.
+
+| Calculation | Formula / required inputs |
+| --- | --- |
+| Period growth | `(current / previous − 1) × 100`; same metric definition, units, currency and frequency, consecutive complete periods; zero/negative previous value is undefined; missing periods are not bridged; Point snapshots do not imply periodic growth |
+| Annualized MRR | Monthly MRR × 12; explicitly **not company-reported ARR**, which remains a separate metric |
+| ARPA/ARPU | Period revenue / paying accounts; scope must state accounts versus users and the population definition |
+| CAC | Acquisition spend / new paying customers for the same period and cost/population scope |
+| Gross margin | `(revenue − COGS) / revenue × 100` |
+| Net burn | Monthly cash outflows − monthly cash inflows; gross burn is stored separately |
+| Runway | Cash at the monthly burn period-end / positive monthly net burn; assumes constant burn and no future funding/spending change |
+| GRR | `(starting cohort revenue − churn − contraction) / starting cohort revenue × 100` |
+| NRR | `(starting cohort revenue − churn − contraction + expansion) / starting cohort revenue × 100`; identical explicit starting customer cohort required |
+| CAC payback | CAC / (monthly ARPA × gross margin fraction); monthly compatible inputs and positive denominator |
+| Estimated LTV | Monthly ARPA × gross margin fraction / monthly customer churn fraction; constant monthly churn/unit economics, no discounting |
+| Estimated LTV/CAC | Estimated LTV formula divided by CAC; same compatible monthly inputs |
+| Take rate | Marketplace recognized revenue / comparable GMV × 100; **GMV is never revenue** |
+
+Runway, CAC payback, LTV and LTV/CAC calculated from Actual inputs are labeled Forecast because they are assumption-based forward estimates, not realized outcomes. Input snapshots still show their original Actual classification. Target inputs remain Target. Unsupported or insufficient calculations display Insufficient data / undefined and identify the missing/incompatible inputs. No infinite runway or zero growth is substituted for undefined results.
+
+### Chart behavior and interpretation
+
+- One known observation in a comparable group gives a dated KPI card.
+- Multiple known observations give a **point-only time series**. This intentionally avoids implying a value or connecting line across missing periods. The chart frame has exactly the observed rows; no resampling, interpolation, zero-filling or aggregation occurs.
+- Groups separate definitions, scope, unit, currency, frequency, cohort, basis and scenario. Actual uses circle markers; Forecast/Target use diamond markers, explicit labels and different colors. Different currencies are never plotted as a single interchangeable value series.
+- Conflicting values for the same definition/scope/period display a warning and all source points. No unverified average is calculated.
+- Axes show date/period, metric and unit/currency. Hover and the adjacent data/source panels expose values, definitions, scope, dates, references, formulas and input snapshots.
+- Cohort heatmaps require actual observed cohort_retention values with a named cohort and explicit age/units. Only compatible cohorts are combined; missing cells remain blank. Multiple observations in one cohort/age cell withhold the heatmap until reviewed rather than averaging the cell.
+- Funding timeline shows dated round names and amounts, with currency and scenario. Disclosed valuations remain a different metric; total funding is never presented as valuation.
+
+### Frozen metric evidence in analyses
+
+The analysis editor offers **Metric evidence to freeze in this analysis**. Saving a draft copies the selected observation payloads (including dates, definitions, sources, formulas and nested inputs) into that analysis version. Published Reader output exposes these frozen references. Later metric corrections never change an older analysis's evidence. Editing a published analysis creates a new Draft and initially inherits its old metric references; the analyst may explicitly select newer observations. Existing legacy analyses are not retroactively assigned invented metric references.
+
+AI research also captures the approved metric evidence attached at enqueue time, separately from newly discovered numbers. Its draft freezes that captured evidence. AI-returned numeric measurements are persisted in **AI metric proposals**, never in the approved dashboard automatically. Under AI Research result review, inspect their units, scope, dates and tool-returned sources, then explicitly **Approve metric proposals**. Approval adds observations without superseding approved data; conflicting values remain visible. Missing dates/scope/values cannot be accepted as a measured number. The research prompt/schema version changed to invalidate old exact-request cache keys; old jobs/results without metric proposals remain readable.
+
+The AI adapter/schema and approval path are exercised using mocks only. **No real API metric extraction or live financial data was verified because no key is configured.** No API key is needed for manual entry, CSV, calculations, charts or frozen analysis evidence.
+
+### Storage, validation and limits
+
+New metric tables and definition metadata are additive; no startup, profile, evaluation, watchlist, research-job or published-analysis row is destructively migrated. Built-in definitions are not demo measurements. SQLite backups include all metric history and snapshots; the original company CSV export does not include metrics. No benchmark integration or uploaded-document parsing is included. Graph rendering uses Streamlit 1.50.0, Altair 5.5.0 and pandas 2.3.3.
+
+Tests use synthetic observations and temporary SQLite files to cover zero denominators, missing periods, definition/currency/scope incompatibility, Unknown versus zero, forecast separation, sourced conflicts, CSV mapping/idempotence, NRR/GRR cohort requirements, unit-economics sufficiency, constant-burn runway, exact chart rows, observed cohort rendering, metric corrections, stale input lineage, immutable published snapshots, and mocked AI proposal approval. Manual/CSV and calculations have not been checked against a real company's private accounting data. Existing startup/profile/research tests remain enabled; no public deployment or paid research is started by tests.

@@ -5,6 +5,8 @@ from datetime import date
 import streamlit as st
 from catalog import SECTIONS, HEADINGS, LABELS, MODELS, read_csv, map_csv
 from storage import FIELDS
+from metrics import Metrics
+from metrics_ui import dashboard
 
 
 def done(message):
@@ -63,6 +65,8 @@ def detail(cat, company, reader=False):
                 st.caption('Not researched')
             for fact in selected_facts:
                 show_claim(fact['content'], sources)
+    with st.expander('Metrics & Analytics'):
+        dashboard(Metrics(cat.store),sid,prefix=f'detail_{sid}')
     st.subheader('Analyses')
     has_ai_metadata = bool(cat.rows("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_analysis_metadata'"))
     published = cat.analyses(sid, reader=True)
@@ -74,6 +78,10 @@ def detail(cat, company, reader=False):
                 metadata = cat.rows('SELECT * FROM ai_analysis_metadata WHERE analysis_id=?', (version['id'],))
                 if metadata:
                     st.caption(f"AI-generated · {metadata[0]['researched_on']} · model {metadata[0]['model']} · human-reviewed publication")
+            snapshots=Metrics(cat.store).snapshots(version['id'])
+            if snapshots:
+                st.markdown('**Metric evidence frozen for this analysis version**')
+                st.json(snapshots)
             for heading in HEADINGS:
                 st.markdown('**' + heading + '**')
                 claim = version['content'].get(heading)
@@ -135,13 +143,18 @@ def detail(cat, company, reader=False):
         with st.form(f'analysis_{sid}_{selected}'):
             title = st.text_input('Analysis title', value=previous['title'] if previous else '')
             day = st.date_input('Analysis date', value=date.fromisoformat(previous['analyzed_on']) if previous else date.today())
+            metric_history=Metrics(cat.store).observations(sid,history=True)
+            metric_lookup={r['id']:r for r in metric_history}
+            saved_ids=[r['observation_id'] for r in Metrics(cat.store).snapshots(selected)] if selected else []
+            metric_ids=st.multiselect('Metric evidence to freeze in this analysis',list(metric_lookup),default=saved_ids,format_func=lambda i:f"#{i} · {metric_lookup[i]['name']} · {metric_lookup[i]['period_end']} · {metric_lookup[i]['value']} {metric_lookup[i]['currency'] or metric_lookup[i]['unit']} · {metric_lookup[i]['scenario']}",key=f'analysis_metrics_{sid}_{selected}')
+            st.caption('Metric references are full snapshots, including source, definition and calculation inputs. Later measurement corrections do not alter this version.')
             content = {}
             for heading in HEADINGS:
                 st.markdown('**' + heading + '**')
                 content[heading] = claim_form(f'analysis_{sid}_{selected}_{heading}', sources, previous['content'].get(heading) if previous else None)
             if st.form_submit_button('Save draft'):
                 try:
-                    cat.analysis(sid, title, day.isoformat(), content, selected or None)
+                    cat.analysis(sid, title, day.isoformat(), content, selected or None, metric_ids=metric_ids)
                 except ValueError as exc:
                     st.error(str(exc))
                 else:

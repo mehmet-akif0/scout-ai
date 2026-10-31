@@ -6,6 +6,7 @@ from research import ResearchQueue
 from research_provider import Limits, ResearchError, api_key
 from research_worker import start_worker, recover_if_idle
 from profiles import Profiles
+from metrics import Metrics, approve_metric_proposals
 from catalog_ui import done
 
 
@@ -101,3 +102,14 @@ def research_view(cat, active_profile):
     confirm=st.checkbox('I reviewed the selected sources and approve replacing the shown company fields or adding the selected section claims.')
     if st.button('Apply selected proposals',disabled=not(chosen and confirm)):
         queue.apply_proposals(review,chosen); done('Only selected proposals were saved. Published analyses and profile assessments were not changed.')
+
+    st.markdown('**AI metric proposals — separate from approved measurements**')
+    pending_metrics=cat.rows("SELECT * FROM ai_metric_proposals WHERE job_id=? AND state='Pending'",(review,))
+    for item in pending_metrics:
+        st.json(dict(proposal_id=item['id'],measurement=json.loads(item['payload'])))
+    selected_metrics=st.multiselect('Metric proposals to approve',[p['id'] for p in pending_metrics])
+    confirm_metrics=st.checkbox('I reviewed metric values, units, dates, definitions and sources. Save selected proposals as observations; do not replace existing approved metrics.')
+    if st.button('Approve metric proposals',disabled=not(selected_metrics and confirm_metrics)):
+        try:approve_metric_proposals(Metrics(cat.store),review,selected_metrics)
+        except ValueError as exc:st.error(str(exc))
+        else:done('Approved metric observations saved. Existing metrics and published analysis evidence were not changed.')

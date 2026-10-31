@@ -6,6 +6,7 @@ from profile_ui import manage_profiles, assessment_editor
 from catalog import Catalog
 from catalog_ui import catalog_view, watchlists_view, bulk_import_view
 from research_ui import research_view
+from metrics_ui import metrics_view
 
 st.set_page_config(page_title='ScoutAI | Startup scouting', page_icon='🔎', layout='wide')
 store = Store()
@@ -49,7 +50,9 @@ filtered = store.list(query, '' if sector == 'All sectors' else sector,
                       '' if stage == 'All stages' else stage, '' if status == 'All statuses' else status)
 if active_profile is not None and assessment_filter != 'All assessments':
     filtered = [r for r in filtered if profiles.state(active_profile, r['id']) == assessment_filter]
-list_tab, add_tab, profiles_tab, catalog_tab, import_tab, watchlists_tab, research_tab = st.tabs(['Browse & edit', 'Add startup', 'Scouting Profiles', 'Startup catalog', 'Bulk Import', 'Watchlists', 'AI Research'])
+list_tab, add_tab, profiles_tab, catalog_tab, import_tab, watchlists_tab, research_tab, metrics_tab = st.tabs(['Browse & edit', 'Add startup', 'Scouting Profiles', 'Startup catalog', 'Bulk Import', 'Watchlists', 'AI Research', 'Metrics & Analytics'])
+with metrics_tab:
+    metrics_view(catalog)
 with research_tab:
     research_view(catalog, active_profile)
 with catalog_tab:

@@ -8,6 +8,7 @@ from datetime import date
 from difflib import SequenceMatcher
 from urllib.parse import urlsplit
 from storage import FIELDS, STAGES, STATUSES
+from metrics import Metrics
 
 SECTIONS = ('Overview', 'Product', 'Founders', 'Business Model', 'Target Customers', 'Traction', 'Funding', 'Market', 'Competitors')
 HEADINGS = ('Problem and customer need', 'Product and value proposition', 'Market opportunity',
@@ -63,6 +64,7 @@ class Catalog:
                 CREATE TABLE IF NOT EXISTS import_keys (
                     fingerprint TEXT PRIMARY KEY, startup_id INTEGER REFERENCES startups(id) ON DELETE CASCADE);
                 COMMIT;''')
+        Metrics(store)
 
     def rows(self, sql, args=()):
         with closing(self.store.connect()) as db:
@@ -129,7 +131,7 @@ class Catalog:
             sql += " AND v.status='Published' AND v.version=(SELECT MAX(x.version) FROM analysis_versions x WHERE x.series_id=v.series_id AND x.status='Published')"
         return [{**r, 'content': json.loads(r['content'])} for r in self.rows(sql + ' ORDER BY v.id DESC', (startup_id,))]
 
-    def analysis(self, startup_id, title, analyzed_on, content, version_id=None):
+    def analysis(self, startup_id, title, analyzed_on, content, version_id=None, metric_ids=None):
         if not title.strip() or not any(c.get('text', '').strip() for c in content.values()):
             raise ValueError('An analysis needs a title and at least one populated section.')
         date.fromisoformat(analyzed_on)
@@ -146,12 +148,19 @@ class Catalog:
                 raise ValueError('Analysis version not found.')
             if old and old['status'] == 'Draft':
                 db.execute('UPDATE analysis_versions SET title=?,analyzed_on=?,content=? WHERE id=?', (title, analyzed_on, json.dumps(content), version_id))
+                if metric_ids is not None:
+                    db.execute('DELETE FROM analysis_metric_snapshots WHERE analysis_id=?',(version_id,))
+                    Metrics.snapshot(db,version_id,metric_ids,startup_id)
                 return version_id
             series = old['series_id'] if old else db.execute('INSERT INTO analysis_series(startup_id) VALUES (?)', (startup_id,)).lastrowid
             number = db.execute('SELECT COALESCE(MAX(version),0)+1 FROM analysis_versions WHERE series_id=?', (series,)).fetchone()[0]
             new_id = db.execute("INSERT INTO analysis_versions(series_id,version,title,analyzed_on,status,content) VALUES (?,?,?,?,'Draft',?)", (series, number, title.strip(), analyzed_on, json.dumps(content))).lastrowid
             if old and db.execute("SELECT name FROM sqlite_master WHERE name='ai_analysis_metadata'").fetchone():
                 db.execute('INSERT INTO ai_analysis_metadata SELECT ?,job_id,generated_by,model,researched_on,identity,conflicts,profile_snapshot,profile_suggestions FROM ai_analysis_metadata WHERE analysis_id=?', (new_id,version_id))
+            if metric_ids is not None:
+                Metrics.snapshot(db,new_id,metric_ids,startup_id)
+            elif old:
+                db.execute('INSERT INTO analysis_metric_snapshots SELECT ?,observation_id,payload FROM analysis_metric_snapshots WHERE analysis_id=?',(new_id,version_id))
             return new_id
 
     def publish(self, startup_id, version_id):

@@ -10,8 +10,9 @@ from storage import FIELDS, STAGES
 from profiles import Profiles
 from research_provider import Limits, ResearchError, public_url, SCHEMA
 from jsonschema import validate
+from metrics import Metrics, BUILTINS, FIELDS as METRIC_FIELDS
 
-PROMPT_VERSION = 1
+PROMPT_VERSION = 2
 
 class ResearchQueue:
     def __init__(self, store):
@@ -64,7 +65,8 @@ class ResearchQueue:
             target = website if len(startup_ids) == 1 and website else company['website']
             # Invalid companies are queued and fail individually; never block the rest of a batch.
             inputs = dict(startup_id=sid, name=company['name'], website=target, extra_urls=extra_urls,
-                extra_text=extra_text, profile=profile, prompt_version=PROMPT_VERSION)
+                extra_text=extra_text, profile=profile, prompt_version=PROMPT_VERSION,
+                metrics_snapshot=Metrics(self.store).observations(sid),metric_definitions={k:dict(name=v[0],definition=v[1],unit=v[2]) for k,v in BUILTINS.items()})
             fingerprint = hashlib.sha256(json.dumps([inputs, asdict(limits)],sort_keys=True).encode()).hexdigest()
             if fresh:
                 fingerprint += ':' + uuid.uuid4().hex
@@ -122,6 +124,7 @@ class ResearchQueue:
 
     def validate_payload(self, inputs, payload, limits):
         result = payload['result']
+        result.setdefault('metric_proposals',[])
         validate(result, SCHEMA)
         if not result['identity']['confirmed'] or result['identity']['domain'].lower().removeprefix('www.') != domain(inputs['website']):
             raise ResearchError('Company identity could not be confirmed for this domain. No draft created.')
@@ -168,6 +171,15 @@ class ResearchQueue:
                 raise ResearchError('Invalid proposed stage.')
             if proposal['field'] == 'business_model' and proposal['value'] not in MODELS:
                 raise ResearchError('Invalid proposed business model.')
+        for proposal in result['metric_proposals']:
+            refs(proposal['sources'])
+            if not proposal['sources']:raise ResearchError('AI metric proposal has no retrieved source.')
+            measurement=proposal['measurement']
+            if measurement['value'] is None:raise ResearchError('Unknown metrics must not be proposed as numeric observations.')
+            if measurement['label']=='Independently corroborated' and (len(proposal['sources'])<2 or not any(lookup[u]['origin']=='Independent' for u in proposal['sources'])):
+                raise ResearchError('AI metric corroboration needs independent evidence.')
+            Metrics(self.store).validate({**measurement,'source_ref':' | '.join(proposal['sources']),'accessed_on':payload.get('researched_on',date.today().isoformat()),
+                'corroboration_ref':' | '.join(proposal['sources'][1:]),'corroboration_basis':proposal['corroboration_basis']})
         profile = inputs.get('profile')
         keys = {c['key'] for c in profile['criteria']} if profile else set()
         if {s['key'] for s in result['profile_suggestions']} != keys or len(result['profile_suggestions']) != len(keys):
@@ -209,6 +221,15 @@ class ResearchQueue:
             for fact in result['facts']:
                 if fact['claim']['text'].strip() not in ('','Unknown'):
                     db.execute('INSERT INTO research_proposals(job_id,field,value,sources,reason) VALUES (?,?,?,?,?)', (job['id'],'section:'+fact['section'],json.dumps(convert(fact['claim'])),json.dumps(convert(fact['claim'])['sources']),'AI-generated section finding; review before saving.'))
+            for observation in inputs.get('metrics_snapshot',[]):
+                db.execute('INSERT OR IGNORE INTO analysis_metric_snapshots VALUES (?,?,?)',(aid,observation['id'],json.dumps({k:observation[k] for k in METRIC_FIELDS})))
+            for proposal in result.get('metric_proposals',[]):
+                measurement=proposal['measurement']
+                refs=proposal['sources']
+                pub_dates={s['published_on'] for s in result['sources'] if s['url'] in refs and s['published_on']}
+                proposed={**measurement,'source_ref':' | '.join(refs),'accessed_on':today,'published_on':next(iter(pub_dates)) if len(pub_dates)==1 else '',
+                    'corroboration_ref':' | '.join(refs[1:]),'corroboration_basis':proposal['corroboration_basis']}
+                db.execute('INSERT INTO ai_metric_proposals(job_id,startup_id,payload) VALUES (?,?,?)',(job['id'],job['startup_id'],json.dumps(proposed)))
             db.execute("UPDATE research_jobs SET status='Completed',analysis_id=?,error='',updated_at=CURRENT_TIMESTAMP WHERE id=?", (aid,job['id']))
             db.execute('INSERT OR REPLACE INTO research_cache VALUES (?,?,CURRENT_TIMESTAMP)', (job['request_key'],json.dumps(payload)))
 

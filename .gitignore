@@ -20,3 +20,7 @@ data/
 node_modules/
 
 *.research.lock
+
+# Personal local configuration and copies; only the blank example is tracked.
+scoutai.local*.toml
+!scoutai.local.example.toml

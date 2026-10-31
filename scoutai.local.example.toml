@@ -1,0 +1,6 @@
+# Copy to scoutai.local.toml. Keep real credentials in that ignored local file only.
+# All example values are intentionally empty. No API key is needed for manual use.
+[environment]
+SCOUTAI_AI_API_KEY = ""
+SCOUTAI_AI_MODEL = ""
+SCOUTAI_DB_PATH = ""

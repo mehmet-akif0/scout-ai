@@ -4,12 +4,12 @@ A personal startup scouting application built with Python, Streamlit, and SQLite
 
 ## Requirements
 
-- Python 3.12 (tested); Python 3.10+ supported by Streamlit.
+- **Python 3.12, 64-bit** is the supported local-setup version (tested on Linux).
 - Streamlit **1.50.0**, pinned in `requirements.txt`.
 - SQLite is included with Python; no separate database server is required.
 - Manual features need no external API, credentials, or Node.js. Optional AI Research uses server-side OpenAI credentials.
 - Requests **2.34.2** and jsonschema **4.26.0** are pinned for the optional research connection.
-- The background research worker currently requires a POSIX host (Linux/macOS `fcntl` file locks); manual-only Windows support is not validated for this release.
+- Local Windows scripts are provided; worker locking uses `msvcrt` on Windows and `fcntl` on Linux/macOS. Native Windows execution is not yet tested.
 
 ## Install and run
 
@@ -22,7 +22,7 @@ python -m pip install -r requirements.txt
 python -m streamlit run app.py --server.address 127.0.0.1 --server.port 8501 --browser.gatherUsageStats false
 ```
 
-On Windows, activate using `.venv\Scripts\activate` instead.
+For Windows, use **setup_windows.cmd** and **start_windows.cmd**; no manual activation or PowerShell execution-policy changes are needed. See [Windows quick start and database transfer](WINDOWS_QUICKSTART.md).
 
 Open **http://127.0.0.1:8501** in your browser. Stop the server with Ctrl+C. Run the same Streamlit command to open it again; existing records remain saved.
 
@@ -172,7 +172,7 @@ Model input/output tokens and hosted web-search tool calls may be billed. UI sho
 
 ### Queue, recovery and idempotence
 
-Jobs, captured profile criteria, limits, errors, validated results and draft IDs live in SQLite. Worker is a separate local process, not a rerun-bound Streamlit thread. One POSIX file lock per database serializes all worker starts. A transaction claims the next Pending job in insertion/selection order. Refresh only reads progress/reclassifies orphaned Running work under the exclusive worker lock; it never submits a new API call.
+Jobs, captured profile criteria, limits, errors, validated results and draft IDs live in SQLite. Worker is a separate local process, not a rerun-bound Streamlit thread. One platform-native file lock per database serializes all worker starts (`fcntl` on POSIX, a byte-range `msvcrt` lock on Windows). A transaction claims the next Pending job in insertion/selection order. Refresh only reads progress/reclassifies orphaned Running work under the exclusive worker lock; it never submits a new API call.
 
 - Stop pending jobs marks unstarted work Failed with a stopped flag. A Running HTTP request is allowed to finish; there is no claim of canceling a remote request.
 - On a process/machine restart, previously Running jobs become retryable Failed when the worker or research screen obtains the exclusive lock. Pending jobs remain pending until Resume pending jobs or another explicit enqueue starts a worker. There is no hidden startup billing.
@@ -302,3 +302,17 @@ The AI adapter/schema and approval path are exercised using mocks only. **No rea
 New metric tables and definition metadata are additive; no startup, profile, evaluation, watchlist, research-job or published-analysis row is destructively migrated. Built-in definitions are not demo measurements. SQLite backups include all metric history and snapshots; the original company CSV export does not include metrics. No benchmark integration or uploaded-document parsing is included. Graph rendering uses Streamlit 1.50.0, Altair 5.5.0 and pandas 2.3.3.
 
 Tests use synthetic observations and temporary SQLite files to cover zero denominators, missing periods, definition/currency/scope incompatibility, Unknown versus zero, forecast separation, sourced conflicts, CSV mapping/idempotence, NRR/GRR cohort requirements, unit-economics sufficiency, constant-burn runway, exact chart rows, observed cohort rendering, metric corrections, stale input lineage, immutable published snapshots, and mocked AI proposal approval. Manual/CSV and calculations have not been checked against a real company's private accounting data. Existing startup/profile/research tests remain enabled; no public deployment or paid research is started by tests.
+
+
+## Easy Windows local installation
+
+See [WINDOWS_QUICKSTART.md](WINDOWS_QUICKSTART.md) for the short numbered guide, optional private settings, database transfer, and troubleshooting. Install **Python 3.12 (64-bit)**, download/extract the GitHub ZIP, run **setup_windows.cmd**, then run **start_windows.cmd**. The launcher opens **http://127.0.0.1:8501** after its local health check; all server and browser addresses are fixed to loopback. Setup downloads dependencies; startup does not run research or paid API tests.
+
+- `local_config.py` reads the optional ignored `scoutai.local.toml` using Python's standard TOML parser. Only supported string settings are accepted, errors do not disclose contents, empty values do nothing, and nonempty inherited environment bindings take precedence (including managed proxy placeholders).
+- `scoutai.local.example.toml` is the only tracked example; all values are empty. Setup copies it without overwriting an existing personal file. The app and explicitly started worker load local settings before reading configuration.
+- `run_local.py` can also be run as `python run_local.py`; `--no-browser` is available for local checks. Its optional `--port` changes only the port, never the fixed loopback bind. Keep the console open; Ctrl+C stops the child server.
+- `backup_database.py` exports **only** a consistent SQLite snapshot to a new timestamped path under `data/exports/`. It reads the source without modifying it, handles committed WAL data through SQLite's backup API, verifies `quick_check`, and refuses to overwrite an existing file. It never packages local settings or environment credentials. Database content itself is private research, not for public distribution.
+
+**GitHub holds the code, not the database.** Restore the exported file as `data/scoutai.db` on Windows while the app is stopped, retaining any existing destination DB as a separate backup. If SCOUTAI_DB_PATH is set, use that destination instead. Do not copy the Linux `.venv`, proxy/CA configuration, secret bindings, or whole diagnostics folder into a Windows code package. Source/transfer backups should be retained until the restored data is checked.
+
+Windows `.cmd` execution, native browser opening and native Windows file locks remain unverified on a real Windows host. Linux tests exercise local configuration and manual features without keys, loopback command construction, online WAL backup/restore, existing data preservation, and mocked Windows locking. No new product feature or public deployment is introduced; no live API authentication or research is performed as part of this setup work.

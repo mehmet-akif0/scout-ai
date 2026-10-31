@@ -1,4 +1,7 @@
 """ScoutAI: a personal startup scouting workspace."""
+from local_config import load_local_config
+load_local_config()
+
 import streamlit as st
 from storage import Store, STATUSES, STAGES, export_csv
 from profiles import Profiles, ASSESSMENT_STATES

@@ -3,15 +3,24 @@ import streamlit as st
 from storage import Store, STATUSES, STAGES, export_csv
 from profiles import Profiles, ASSESSMENT_STATES
 from profile_ui import manage_profiles, assessment_editor
+from catalog import Catalog
+from catalog_ui import catalog_view, watchlists_view, bulk_import_view
 
 st.set_page_config(page_title='ScoutAI | Startup scouting', page_icon='🔎', layout='wide')
 store = Store()
 profiles = Profiles(store)
+catalog = Catalog(store)
 st.title('ScoutAI')
 st.caption('Your personal startup scouting workspace. Research thoughtfully. Keep everything in one place.')
 
 if notice := st.session_state.pop('notice', None):
     st.success(notice)
+
+view = st.sidebar.radio('Workspace view', ['Local administration', 'Reader'], index=1 if st.query_params.get('view') == 'reader' else 0)
+if view == 'Reader':
+    st.caption('Reader view shows published analyses only. This display mode is not authentication.')
+    catalog_view(catalog, reader=True)
+    st.stop()
 
 rows = store.list()
 with st.sidebar:
@@ -39,7 +48,13 @@ filtered = store.list(query, '' if sector == 'All sectors' else sector,
                       '' if stage == 'All stages' else stage, '' if status == 'All statuses' else status)
 if active_profile is not None and assessment_filter != 'All assessments':
     filtered = [r for r in filtered if profiles.state(active_profile, r['id']) == assessment_filter]
-list_tab, add_tab, profiles_tab = st.tabs(['Browse & edit', 'Add startup', 'Scouting Profiles'])
+list_tab, add_tab, profiles_tab, catalog_tab, import_tab, watchlists_tab = st.tabs(['Browse & edit', 'Add startup', 'Scouting Profiles', 'Startup catalog', 'Bulk Import', 'Watchlists'])
+with catalog_tab:
+    catalog_view(catalog)
+with import_tab:
+    bulk_import_view(catalog)
+with watchlists_tab:
+    watchlists_view(catalog)
 with profiles_tab:
     manage_profiles(profiles)
 

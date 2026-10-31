@@ -19,7 +19,7 @@ class AppFlowTest(unittest.TestCase):
             field('text_input', 'Sector').set_value('Climate')
             field('text_input', 'Founders').set_value('Test Founder')
             button('Add startup').click().run()
-            app.run()
+            app = AppTest.from_file('app.py').run()
             self.assertFalse(app.exception)
             self.assertEqual(Store().list()[0]['name'], 'Test Startup')
             # Browse tab appears before the creation tab in the element tree.
@@ -27,7 +27,7 @@ class AppFlowTest(unittest.TestCase):
             edit_status.set_value('Shortlisted')
             [w for w in app.text_area if w.label == 'Personal notes'][0].set_value('Follow up next week')
             button('Save changes').click().run()
-            app.run()
+            app = AppTest.from_file('app.py').run()
             self.assertFalse(app.exception)
             self.assertEqual(Store().list()[0]['status'], 'Shortlisted')
             # A new Streamlit session reads the persisted data.

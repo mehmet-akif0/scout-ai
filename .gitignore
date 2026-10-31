@@ -18,3 +18,5 @@ data/
 .DS_Store
 # Previous application artifacts
 node_modules/
+
+*.research.lock

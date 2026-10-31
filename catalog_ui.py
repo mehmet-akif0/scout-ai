@@ -41,6 +41,8 @@ def detail(cat, company, reader=False):
     sid = company['id']
     st.header(company['name'])
     st.caption(f"{company['research_status']} · Company #{sid}")
+    if not reader:
+        st.caption('Use AI Research to research this company, then review its suggested changes and analysis draft.')
     st.write('Direct detail address:')
     st.code(f'?view=reader&startup={sid}', language=None)
     st.caption('Append this query to the app address to open this company directly. Reader mode is a display option, not access control.')
@@ -62,11 +64,16 @@ def detail(cat, company, reader=False):
             for fact in selected_facts:
                 show_claim(fact['content'], sources)
     st.subheader('Analyses')
+    has_ai_metadata = bool(cat.rows("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_analysis_metadata'"))
     published = cat.analyses(sid, reader=True)
     if not published:
         st.info('No published analyses. Not researched.')
     for version in published:
         with st.expander(f"{version['title']} · {version['analyzed_on']} · v{version['version']} · Published"):
+            if has_ai_metadata:
+                metadata = cat.rows('SELECT * FROM ai_analysis_metadata WHERE analysis_id=?', (version['id'],))
+                if metadata:
+                    st.caption(f"AI-generated · {metadata[0]['researched_on']} · model {metadata[0]['model']} · human-reviewed publication")
             for heading in HEADINGS:
                 st.markdown('**' + heading + '**')
                 claim = version['content'].get(heading)
@@ -119,6 +126,10 @@ def detail(cat, company, reader=False):
         versions = {v['id']: v for v in cat.analyses(sid)}
         selected = st.selectbox('Analysis version to edit', [0, *versions], format_func=lambda i: 'New dated analysis' if i == 0 else f"{versions[i]['title']} · series {versions[i]['series_id']} · v{versions[i]['version']} · {versions[i]['status']}")
         previous = versions.get(selected)
+        if previous and has_ai_metadata:
+            metadata = cat.rows('SELECT * FROM ai_analysis_metadata WHERE analysis_id=?', (previous['id'],))
+            if metadata:
+                st.caption(f"AI-generated · {metadata[0]['researched_on']} · model {metadata[0]['model']} · review evidence before publishing")
         if previous and previous['status'] == 'Published':
             st.warning('Saving edits creates a new Draft version. The published version stays unchanged.')
         with st.form(f'analysis_{sid}_{selected}'):

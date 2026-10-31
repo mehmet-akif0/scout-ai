@@ -5,6 +5,7 @@ from profiles import Profiles, ASSESSMENT_STATES
 from profile_ui import manage_profiles, assessment_editor
 from catalog import Catalog
 from catalog_ui import catalog_view, watchlists_view, bulk_import_view
+from research_ui import research_view
 
 st.set_page_config(page_title='ScoutAI | Startup scouting', page_icon='🔎', layout='wide')
 store = Store()
@@ -25,7 +26,7 @@ if view == 'Reader':
 rows = store.list()
 with st.sidebar:
     st.header('Startup radar')
-    st.caption('Private by default on your local machine. No external APIs or AI connections.')
+    st.caption('Local administration. AI research is optional and requires server-side configuration.')
     profile_lookup = {p['id']: p for p in profiles.list()}
     profile_options = [0, *profile_lookup]
     if st.session_state.get('active_profile_selector') not in profile_options:
@@ -48,7 +49,9 @@ filtered = store.list(query, '' if sector == 'All sectors' else sector,
                       '' if stage == 'All stages' else stage, '' if status == 'All statuses' else status)
 if active_profile is not None and assessment_filter != 'All assessments':
     filtered = [r for r in filtered if profiles.state(active_profile, r['id']) == assessment_filter]
-list_tab, add_tab, profiles_tab, catalog_tab, import_tab, watchlists_tab = st.tabs(['Browse & edit', 'Add startup', 'Scouting Profiles', 'Startup catalog', 'Bulk Import', 'Watchlists'])
+list_tab, add_tab, profiles_tab, catalog_tab, import_tab, watchlists_tab, research_tab = st.tabs(['Browse & edit', 'Add startup', 'Scouting Profiles', 'Startup catalog', 'Bulk Import', 'Watchlists', 'AI Research'])
+with research_tab:
+    research_view(catalog, active_profile)
 with catalog_tab:
     catalog_view(catalog)
 with import_tab:
@@ -121,4 +124,4 @@ with list_tab:
                     st.rerun()
 
 st.divider()
-st.caption('ScoutAI · Personal research, stored locally in SQLite · No automated AI analysis')
+st.caption('ScoutAI · Personal research, stored locally in SQLite · Optional AI research · human-reviewed drafts')

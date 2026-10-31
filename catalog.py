@@ -149,7 +149,10 @@ class Catalog:
                 return version_id
             series = old['series_id'] if old else db.execute('INSERT INTO analysis_series(startup_id) VALUES (?)', (startup_id,)).lastrowid
             number = db.execute('SELECT COALESCE(MAX(version),0)+1 FROM analysis_versions WHERE series_id=?', (series,)).fetchone()[0]
-            return db.execute("INSERT INTO analysis_versions(series_id,version,title,analyzed_on,status,content) VALUES (?,?,?,?,'Draft',?)", (series, number, title.strip(), analyzed_on, json.dumps(content))).lastrowid
+            new_id = db.execute("INSERT INTO analysis_versions(series_id,version,title,analyzed_on,status,content) VALUES (?,?,?,?,'Draft',?)", (series, number, title.strip(), analyzed_on, json.dumps(content))).lastrowid
+            if old and db.execute("SELECT name FROM sqlite_master WHERE name='ai_analysis_metadata'").fetchone():
+                db.execute('INSERT INTO ai_analysis_metadata SELECT ?,job_id,generated_by,model,researched_on,identity,conflicts,profile_snapshot,profile_suggestions FROM ai_analysis_metadata WHERE analysis_id=?', (new_id,version_id))
+            return new_id
 
     def publish(self, startup_id, version_id):
         version = next((v for v in self.analyses(startup_id) if v['id'] == version_id), None)
